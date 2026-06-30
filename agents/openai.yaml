@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coze 网页应用发布"
+  short_description: "把 Coze 智能体或工作流做成可发布网页应用"
+  default_prompt: "Use $coze-html-app-builder to turn a Coze bot or workflow into a publishable web app."
