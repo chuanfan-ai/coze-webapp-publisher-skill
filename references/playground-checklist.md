@@ -82,10 +82,22 @@ Before saying the work is done:
 - chat/workflow endpoint returns success
 - page script syntax is valid
 - browser output shows readable content
-- Markdown tables/lists/headings render correctly
+- Markdown headings, lists, tables, task lists, blockquotes, code blocks, links, and images render correctly
+- video/audio links or custom media syntax render as playable `<video>` / `<audio>` elements when the product needs rich media
+- generated HTML is sanitized before being inserted into the DOM
 - no raw SSE event JSON appears in the answer
 - error messages tell the user whether the failing part is token, upload, chat/workflow, CORS, or parsing
 - if publishing publicly, no real PAT/API key is committed
+
+## Markdown Rendering Recommendation
+
+For single-file HTML apps, prefer this stack:
+
+- `marked` for GFM-style Markdown parsing
+- `DOMPurify` to sanitize the generated HTML
+- a small media post-processor for videos/audio because Markdown itself does not define a universal video syntax
+
+Do not rely on regex-only Markdown rendering for Coze output. It breaks on nested lists, tables, code fences, images, escaped characters, and mixed media.
 
 ## Production Reminder
 

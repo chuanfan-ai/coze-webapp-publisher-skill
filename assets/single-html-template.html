@@ -68,6 +68,32 @@
       white-space: normal;
       line-height: 1.72;
     }
+    .result h1, .result h2, .result h3 { margin: 18px 0 10px; }
+    .result p { margin: 10px 0; }
+    .result ul, .result ol { padding-left: 1.4em; }
+    .result blockquote {
+      margin: 12px 0;
+      padding: 8px 12px;
+      border-left: 3px solid var(--accent);
+      background: #f2faf6;
+      color: #334155;
+    }
+    .result pre {
+      overflow-x: auto;
+      padding: 12px;
+      border-radius: 8px;
+      background: #101828;
+      color: #f8fafc;
+    }
+    .result code {
+      padding: 2px 5px;
+      border-radius: 5px;
+      background: #eef4f1;
+    }
+    .result pre code {
+      padding: 0;
+      background: transparent;
+    }
     .result table {
       width: 100%;
       border-collapse: collapse;
@@ -78,6 +104,22 @@
       padding: 8px;
       vertical-align: top;
     }
+    .result img,
+    .result video {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      margin: 12px 0;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #f8fafc;
+    }
+    .result audio {
+      display: block;
+      width: 100%;
+      margin: 12px 0;
+    }
+    .result a { color: #2563eb; }
     .status { color: var(--muted); font-size: 13px; margin-top: 10px; }
     @media (max-width: 820px) {
       main { grid-template-columns: 1fr; }
@@ -101,6 +143,8 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
   <script>
     const apiUrl = "https://api.coze.cn/v3/chat?";
     const fileApiUrl = "https://api.coze.cn/v1/files/upload";
@@ -195,20 +239,87 @@
         const data = JSON.parse(raw);
         if (/finish|done|complete/i.test(data.event || data.msg_type || data.type || "")) return;
         const delta = data.content || data.delta || data.answer || data.data?.content || "";
-        if (delta) resultEl.innerHTML = renderMarkdown(resultEl.dataset.raw = (resultEl.dataset.raw || "") + delta);
+        if (delta) renderAnswer(resultEl.dataset.raw = (resultEl.dataset.raw || "") + delta);
       } catch {
         // Ignore malformed non-answer events.
       }
     }
 
+    function renderAnswer(markdown) {
+      resultEl.innerHTML = renderMarkdown(markdown);
+      enhanceRenderedMedia(resultEl);
+    }
+
     function renderMarkdown(text) {
-      return escapeHtml(text)
-        .replace(/^### (.*)$/gm, "<h3>$1</h3>")
-        .replace(/^## (.*)$/gm, "<h2>$1</h2>")
-        .replace(/^# (.*)$/gm, "<h1>$1</h1>")
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-        .replace(/^\s*[-*]\s+(.*)$/gm, "<li>$1</li>")
-        .replace(/\n/g, "<br>");
+      const prepared = preprocessMarkdownMedia(text);
+      if (!window.marked || !window.DOMPurify) {
+        return `<pre>${escapeHtml(prepared)}</pre>`;
+      }
+      marked.setOptions({ gfm: true, breaks: true });
+      const html = marked.parse(prepared);
+      return DOMPurify.sanitize(html, {
+        ADD_TAGS: ["video", "audio", "source"],
+        ADD_ATTR: ["controls", "src", "type", "poster", "preload", "playsinline", "loading", "decoding", "target", "rel"],
+        ALLOW_DATA_ATTR: false
+      });
+    }
+
+    function preprocessMarkdownMedia(markdown) {
+      return markdown
+        .replace(/!?\[(video|audio)(?:\|([^\]]+))?\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/gi, mediaTokenToHtml)
+        .replace(/@\[(video|audio)(?:\|([^\]]+))?\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/gi, mediaTokenToHtml);
+    }
+
+    function mediaTokenToHtml(match, kind, label, url, title) {
+      const src = normalizeMediaUrl(url);
+      if (!src) return escapeHtml(match);
+      const safeTitle = escapeHtml(title || label || kind);
+      if (kind.toLowerCase() === "audio") {
+        return `<audio controls preload="metadata" src="${escapeHtml(src)}">${safeTitle}</audio>`;
+      }
+      return `<video controls preload="metadata" playsinline src="${escapeHtml(src)}">${safeTitle}</video>`;
+    }
+
+    function enhanceRenderedMedia(root) {
+      root.querySelectorAll("a[href]").forEach((link) => {
+        const href = link.getAttribute("href") || "";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        if (isVideoUrl(href)) link.replaceWith(createMediaElement("video", href, link.textContent));
+        if (isAudioUrl(href)) link.replaceWith(createMediaElement("audio", href, link.textContent));
+      });
+      root.querySelectorAll("img").forEach((image) => {
+        image.loading = "lazy";
+        image.decoding = "async";
+      });
+    }
+
+    function createMediaElement(kind, url, label) {
+      const element = document.createElement(kind);
+      element.controls = true;
+      element.preload = "metadata";
+      element.src = normalizeMediaUrl(url);
+      element.textContent = label || url;
+      if (kind === "video") element.setAttribute("playsinline", "");
+      return element;
+    }
+
+    function normalizeMediaUrl(url) {
+      try {
+        const parsed = new URL(url, window.location.href);
+        if (!["http:", "https:", "blob:"].includes(parsed.protocol)) return "";
+        return parsed.href;
+      } catch {
+        return "";
+      }
+    }
+
+    function isVideoUrl(url) {
+      return /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url);
+    }
+
+    function isAudioUrl(url) {
+      return /\.(mp3|wav|ogg|m4a|aac|flac)(\?.*)?$/i.test(url);
     }
 
     function escapeHtml(text) {

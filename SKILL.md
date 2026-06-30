@@ -49,7 +49,7 @@ Build a single-file HTML/CSS/JS app first to validate the product flow, unless t
    - Use a clear app structure: input area, optional file/upload area, primary action, progress/error state, result output, and follow-up controls when useful.
    - Map each Coze input to a clear UI control: textareas for long text, file inputs for attachments/images, small inputs for IDs only when the user needs to edit them.
    - Show upload previews, sending state, stop/retry controls when useful, and a readable result area.
-   - Render Markdown, tables, lists, and code blocks when the bot returns structured text.
+   - Render Coze Markdown as real UI, including headings, lists, tables, task lists, blockquotes, code blocks, links, images, and media links.
    - Match the visual style to the product category; avoid generic dashboards unless the workflow is genuinely operational.
 
 5. Implement the API path.
@@ -58,14 +58,24 @@ Build a single-file HTML/CSS/JS app first to validate the product flow, unless t
    - For multimodal chat, use the content shape shown by Playground. Common pattern: `content_type: "object_string"` with JSON-stringified objects containing text and uploaded file references.
    - For streaming, parse server-sent events defensively and append only answer content; filter completion/status events so raw JSON never appears in the UI.
 
-6. Validate before reporting done.
+6. Render Markdown safely.
+   - Do not hand-roll Markdown with regular expressions except as a last-resort fallback.
+   - For single-file HTML, prefer `marked` for GFM parsing plus `DOMPurify` for sanitizing generated HTML.
+   - Treat raw HTML from Coze output as untrusted; sanitize before inserting into `innerHTML`.
+   - Support standard Markdown images with `![alt](url)`.
+   - Markdown has no universal video syntax; add a controlled media layer such as `@[video](url)`, `![video](url)`, or auto-convert links ending in `.mp4`, `.webm`, `.ogg`, `.mov`, `.m4v` into `<video controls>`.
+   - Auto-convert audio links ending in `.mp3`, `.wav`, `.ogg`, `.m4a`, `.aac`, `.flac` into `<audio controls>`.
+   - Allow only safe media URL protocols such as `http:`, `https:`, and `blob:`; reject `javascript:` and other active protocols.
+
+7. Validate before reporting done.
    - Run a JavaScript syntax check against inline scripts.
    - Smoke test token plus the exact Coze endpoint being used.
    - If files/images are supported, smoke test `files/upload` and confirm a `file_id`.
    - Open or refresh the local HTML in a browser/server and inspect the visible output.
    - Confirm Markdown renders as UI, not raw Markdown or raw streaming JSON.
+   - Test at least headings, bold, table, task list, image, and one video/audio link when the Coze output may include rich media.
 
-7. Publish when requested.
+8. Publish when requested.
    - For GitHub or GitHub Pages, create a clean publish folder rather than pushing a mixed working directory.
    - Never commit a real PAT/API key. Use a runtime input, localStorage, `.env` plus backend proxy, or platform secret depending on deployment mode.
    - Include a README that explains the Coze inputs required to use the app.
